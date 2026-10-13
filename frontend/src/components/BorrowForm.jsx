@@ -1,28 +1,16 @@
- import { useState } from "react";
+ 
+import { useState } from "react";
+import { useAlert } from "./Alert";
 
-function BorrowForm({
-    books,
-    members,
-    onBorrow
-}) {
+function BorrowForm({ books, members, onBorrow }) {
+    const { toast, confirm } = useAlert();
 
-    const getToday = () => {
-        return new Date()
-            .toISOString()
-            .split("T")[0];
-    };
+    const getToday = () => new Date().toISOString().split("T")[0];
 
     const getDueDate = () => {
-
         const date = new Date();
-
-        date.setDate(
-            date.getDate() + 14
-        );
-
-        return date
-            .toISOString()
-            .split("T")[0];
+        date.setDate(date.getDate() + 14);
+        return date.toISOString().split("T")[0];
     };
 
     const [formData, setFormData] = useState({
@@ -33,29 +21,44 @@ function BorrowForm({
     });
 
     const handleChange = (event) => {
-
         setFormData({
             ...formData,
             [event.target.name]: event.target.value
         });
-
     };
 
     const handleSubmit = async (event) => {
-
         event.preventDefault();
 
-        try {
+        const selectedBook = books.find(
+            (book) => Number(book.id) === Number(formData.book_id)
+        );
 
+        const selectedMember = members.find(
+            (member) => Number(member.id) === Number(formData.member_id)
+        );
+
+        const approved = await confirm({
+            title: "Borrow this book?",
+            message: `Confirm borrowing "${
+                selectedBook?.title || "this book"
+            }" for ${
+                selectedMember?.name || "this member"
+            }? Due date: ${formData.due_date}.`,
+            confirmText: "Yes, Borrow",
+            cancelText: "Cancel"
+        });
+
+        if (!approved) return;
+
+        try {
             const response = await fetch(
                 "http://localhost:5000/api/loans/borrow",
                 {
                     method: "POST",
-
                     headers: {
                         "Content-Type": "application/json"
                     },
-
                     body: JSON.stringify({
                         ...formData,
                         book_id: Number(formData.book_id),
@@ -67,17 +70,13 @@ function BorrowForm({
             const data = await response.json();
 
             if (!response.ok) {
-
-                alert(
-                    data.message ||
-                    "Unable to borrow book"
-                );
-
+                toast(data.message || "Unable to borrow book", "error");
                 return;
             }
 
-            alert(
-                "Book borrowed successfully"
+            toast(
+                `Book borrowed successfully! Please return it by ${formData.due_date}.`,
+                "success"
             );
 
             setFormData({
@@ -88,129 +87,65 @@ function BorrowForm({
             });
 
             onBorrow();
-
         } catch (error) {
-
-            console.error(
-                "Borrow error:",
-                error
-            );
-
-            alert(
-                "Unable to borrow book"
-            );
+            console.error("Borrow error:", error);
+            toast("Unable to borrow book. Please try again.", "error");
         }
     };
 
-    const availableBooks =
-        books.filter(
-            (book) =>
-                Number(book.available_copies) > 0
-        );
+    const availableBooks = books.filter(
+        (book) => Number(book.available_copies) > 0
+    );
 
-    const activeMembers =
-        members.filter(
-            (member) =>
-                member.status === "active"
-        );
+    const activeMembers = members.filter(
+        (member) => member.status === "active"
+    );
 
     return (
-        <div className="form-card">
-
+        <div className="borrow-form-card">
             <div className="card-header">
-
-                <h3>
-                    Issue a Book
-                </h3>
-
-                <p>
-                    Select an available book and active member.
-                </p>
-
+                <h3>Issue a Book</h3>
+                <p>Select an available book and active member.</p>
             </div>
 
             <form onSubmit={handleSubmit}>
-
                 <div className="form-grid">
-
                     <div className="form-group">
-
-                        <label>
-                            Select Book
-                        </label>
-
+                        <label>Select Book</label>
                         <select
                             name="book_id"
                             value={formData.book_id}
                             onChange={handleChange}
                             required
                         >
-
-                            <option value="">
-                                Choose a book
-                            </option>
-
-                            {availableBooks.map(
-                                (book) => (
-
-                                    <option
-                                        key={book.id}
-                                        value={book.id}
-                                    >
-                                        {book.title}
-                                        {" "}
-                                        ({book.available_copies}
-                                        {" "}
-                                        available)
-                                    </option>
-
-                                )
-                            )}
-
+                            <option value="">Choose a book</option>
+                            {availableBooks.map((book) => (
+                                <option key={book.id} value={book.id}>
+                                    {book.title} ({book.available_copies} available)
+                                </option>
+                            ))}
                         </select>
-
                     </div>
 
                     <div className="form-group">
-
-                        <label>
-                            Select Member
-                        </label>
-
+                        <label>Select Member</label>
                         <select
                             name="member_id"
                             value={formData.member_id}
                             onChange={handleChange}
                             required
                         >
-
-                            <option value="">
-                                Choose a member
-                            </option>
-
-                            {activeMembers.map(
-                                (member) => (
-
-                                    <option
-                                        key={member.id}
-                                        value={member.id}
-                                    >
-                                        {member.name}
-                                    </option>
-
-                                )
-                            )}
-
+                            <option value="">Choose a member</option>
+                            {activeMembers.map((member) => (
+                                <option key={member.id} value={member.id}>
+                                    {member.name}
+                                </option>
+                            ))}
                         </select>
-
                     </div>
 
                     <div className="form-group">
-
-                        <label>
-                            Borrow Date
-                        </label>
-
+                        <label>Borrow Date</label>
                         <input
                             type="date"
                             name="borrow_date"
@@ -218,38 +153,27 @@ function BorrowForm({
                             onChange={handleChange}
                             required
                         />
-
                     </div>
 
                     <div className="form-group">
-
-                        <label>
-                            Due Date
-                        </label>
-
+                        <label>Due Date</label>
                         <input
                             type="date"
                             name="due_date"
                             value={formData.due_date}
                             onChange={handleChange}
+                            min={formData.borrow_date}
                             required
                         />
-
                     </div>
-
                 </div>
 
-                <button
-                    type="submit"
-                    className="form-button"
-                >
+                <button type="submit" className="form-button">
                     Borrow Book
                 </button>
-
             </form>
-
         </div>
     );
 }
 
-export default BorrowForm; 
+export default BorrowForm;

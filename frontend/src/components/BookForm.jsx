@@ -1,10 +1,10 @@
- import { useEffect, useState } from "react";
+ 
+import { useEffect, useState } from "react";
+import { useAlert } from "./Alert";
 
-function BookForm({
-    editingBook,
-    onBookSaved,
-    onCancel
-}) {
+function BookForm({ editingBook, onBookSaved, onCancel }) {
+    const { toast } = useAlert();
+
     const [formData, setFormData] = useState({
         title: "",
         author: "",
@@ -59,7 +59,7 @@ function BookForm({
             };
 
             const response = await fetch(url, {
-                method: method,
+                method,
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -69,52 +69,40 @@ function BookForm({
             const data = await response.json();
 
             if (!response.ok) {
-                alert(data.message || "Something went wrong");
+                toast(data.message || "Unable to save book", "error");
                 return;
             }
 
-            alert(
+            toast(
                 editingBook
-                    ? "Book updated successfully"
-                    : "Book added successfully"
+                    ? "Book updated successfully!"
+                    : "Book added successfully!",
+                "success"
             );
 
             onBookSaved();
-
         } catch (error) {
             console.error("Book save error:", error);
-            alert("Unable to save book");
+            toast("Unable to save book. Please try again.", "error");
         }
     };
 
     return (
         <div className="form-card">
-
             <div className="card-header">
-
-                <h3>
-                    {editingBook
-                        ? "Edit Book"
-                        : "Add New Book"}
-                </h3>
+                <h3>{editingBook ? "Edit Book" : "Add New Book"}</h3>
 
                 <p>
                     {editingBook
                         ? "Update the selected book details."
                         : "Add a new book to your library collection."}
                 </p>
-
             </div>
 
             <form onSubmit={handleSubmit}>
-
                 <div className="form-grid">
-
                     <div className="form-group">
-                        <label>
-                            Book Title
-                        </label>
-
+                        <label>Book Title</label>
                         <input
                             type="text"
                             name="title"
@@ -126,10 +114,7 @@ function BookForm({
                     </div>
 
                     <div className="form-group">
-                        <label>
-                            Author
-                        </label>
-
+                        <label>Author</label>
                         <input
                             type="text"
                             name="author"
@@ -141,10 +126,7 @@ function BookForm({
                     </div>
 
                     <div className="form-group">
-                        <label>
-                            ISBN
-                        </label>
-
+                        <label>ISBN</label>
                         <input
                             type="text"
                             name="isbn"
@@ -155,10 +137,7 @@ function BookForm({
                     </div>
 
                     <div className="form-group">
-                        <label>
-                            Category
-                        </label>
-
+                        <label>Category</label>
                         <input
                             type="text"
                             name="category"
@@ -169,10 +148,7 @@ function BookForm({
                     </div>
 
                     <div className="form-group">
-                        <label>
-                            Total Copies
-                        </label>
-
+                        <label>Total Copies</label>
                         <input
                             type="number"
                             name="total_copies"
@@ -183,33 +159,23 @@ function BookForm({
                             required
                         />
                     </div>
-
                 </div>
 
-                <button
-                    type="submit"
-                    className="form-button"
-                >
-                    {editingBook
-                        ? "Update Book"
-                        : "Add Book"}
+                <button type="submit" className="form-button">
+                    {editingBook ? "Update Book" : "Add Book"}
                 </button>
 
                 {editingBook && (
                     <button
                         type="button"
                         className="action-button edit-button"
-                        style={{
-                            marginLeft: "8px"
-                        }}
+                        style={{ marginLeft: "8px" }}
                         onClick={onCancel}
                     >
                         Cancel
                     </button>
                 )}
-
             </form>
-
         </div>
     );
 }

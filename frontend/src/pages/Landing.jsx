@@ -1,270 +1,502 @@
- import { Link } from "react-router-dom";
+ 
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
-const features = [
+const API_URL = "http://localhost:5000/api/books";
+const SERVER_URL = "http://localhost:5000";
+
+const featuredBooks = [
     {
-        icon: "📚",
-        title: "Explore Books",
-        text: "Browse the collection and find books that interest you."
+        title: "The Great Gatsby",
+        author: "F. Scott Fitzgerald",
+        isbn: "9780743273565",
+        category: "Classic",
+        image:
+            "https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg",
     },
     {
-        icon: "🔄",
-        title: "Borrow Books",
-        text: "See availability and keep track of your borrowing."
+        title: "Atomic Habits",
+        author: "James Clear",
+        isbn: "9780735211292",
+        category: "Self Improvement",
+        image:
+            "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg",
     },
     {
-        icon: "📅",
-        title: "Track Due Dates",
-        text: "Review your borrowed books and their due dates."
+        title: "The Alchemist",
+        author: "Paulo Coelho",
+        isbn: "9780061122415",
+        category: "Fiction",
+        image:
+            "https://covers.openlibrary.org/b/isbn/9780061122415-L.jpg",
     },
     {
-        icon: "🛡️",
-        title: "Role-Based Access",
-        text: "Dedicated management tools for admins and a simple experience for readers."
-    }
+        title: "Rich Dad Poor Dad",
+        author: "Robert T. Kiyosaki",
+        isbn: "9781612680194",
+        category: "Finance",
+        image:
+            "https://covers.openlibrary.org/b/isbn/9781612680194-L.jpg",
+    },
 ];
 
+function getBookImage(book) {
+    const rawImage =
+        book.image ||
+        book.image_url ||
+        book.cover_image ||
+        book.coverImage ||
+        book.imageUrl ||
+        "";
+
+    if (typeof rawImage === "string" && rawImage.trim()) {
+        const image = rawImage.trim();
+
+        if (
+            image.startsWith("https://") ||
+            image.startsWith("http://") ||
+            image.startsWith("data:image/")
+        ) {
+            return image;
+        }
+
+        if (image.startsWith("/")) {
+            return `${SERVER_URL}${image}`;
+        }
+
+        if (image.startsWith("uploads/")) {
+            return `${SERVER_URL}/${image}`;
+        }
+
+        return `${SERVER_URL}/uploads/${image}`;
+    }
+
+    const isbn = String(book.isbn || "").replace(/[^0-9Xx]/g, "");
+
+    if (isbn) {
+        return `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(
+            isbn
+        )}-L.jpg`;
+    }
+
+    return "";
+}
+
+function BookCover({ book }) {
+    const [imageSource, setImageSource] = useState(() =>
+        getBookImage(book)
+    );
+    const [showFallback, setShowFallback] = useState(!getBookImage(book));
+    const triedOnlineCover = useRef(false);
+
+    useEffect(() => {
+        setImageSource(getBookImage(book));
+        setShowFallback(!getBookImage(book));
+        triedOnlineCover.current = false;
+    }, [
+        book.id,
+        book.image,
+        book.image_url,
+        book.cover_image,
+        book.coverImage,
+        book.isbn,
+    ]);
+
+    function handleImageError() {
+        const isbn = String(book.isbn || "").replace(/[^0-9Xx]/g, "");
+
+        if (
+            isbn &&
+            !triedOnlineCover.current &&
+            !imageSource.includes("covers.openlibrary.org")
+        ) {
+            triedOnlineCover.current = true;
+            setImageSource(
+                `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(
+                    isbn
+                )}-L.jpg`
+            );
+            return;
+        }
+
+        setShowFallback(true);
+    }
+
+    return (
+        <div className="book-cover-wrapper">
+            {!showFallback && imageSource && (
+                <img
+                    className="book-cover-image"
+                    src={imageSource}
+                    alt={`Cover of ${book.title || "book"}`}
+                    loading="lazy"
+                    onError={handleImageError}
+                />
+            )}
+
+            {showFallback && (
+                <div className="book-cover-fallback">
+                    <span>📚</span>
+                    <span>{book.title || "Book cover unavailable"}</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function Landing() {
+    const [books, setBooks] = useState([]);
+    const [loadingBooks, setLoadingBooks] = useState(true);
+    const [booksError, setBooksError] = useState(false);
+    const [carouselPaused, setCarouselPaused] = useState(false);
+    const carouselRef = useRef(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function fetchBooks() {
+            try {
+                const response = await fetch(API_URL);
+
+                if (!response.ok) {
+                    throw new Error("Unable to fetch books");
+                }
+
+                const data = await response.json();
+
+                const bookList = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data.books)
+                      ? data.books
+                      : Array.isArray(data.data)
+                        ? data.data
+                        : [];
+
+                if (isMounted) {
+                    setBooks(bookList);
+                    setBooksError(false);
+                }
+            } catch (error) {
+                console.error("Landing page books error:", error);
+
+                if (isMounted) {
+                    setBooksError(true);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoadingBooks(false);
+                }
+            }
+        }
+
+        fetchBooks();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        const carousel = carouselRef.current;
+
+        if (!carousel || carouselPaused) {
+            return undefined;
+        }
+
+        const interval = window.setInterval(() => {
+            const maxScroll =
+                carousel.scrollWidth - carousel.clientWidth;
+
+            if (maxScroll <= 0) {
+                return;
+            }
+
+            if (carousel.scrollLeft >= maxScroll - 5) {
+                carousel.scrollTo({
+                    left: 0,
+                    behavior: "smooth",
+                });
+            } else {
+                carousel.scrollBy({
+                    left: 280,
+                    behavior: "smooth",
+                });
+            }
+        }, 3000);
+
+        return () => window.clearInterval(interval);
+    }, [carouselPaused, books.length]);
+
+    function moveCarousel(direction) {
+        if (!carouselRef.current) {
+            return;
+        }
+
+        carouselRef.current.scrollBy({
+            left: direction * 280,
+            behavior: "smooth",
+        });
+    }
+
+    const displayedBooks = books.length > 0 ? books : featuredBooks;
+
     return (
         <div className="landing-page">
             <nav className="landing-navbar">
-                <Link
-                    to="/"
-                    className="landing-logo"
-                >
-                    <div className="landing-logo-icon">
-                        📚
-                    </div>
-
+                <Link to="/" className="landing-logo">
+                    <div className="landing-logo-icon">📚</div>
                     <div>
                         <strong>LibraSys</strong>
-                        <span>Library Management</span>
+                        <span>Library Management System</span>
                     </div>
                 </Link>
 
                 <div className="landing-nav-links">
-                    <a href="#features">Features</a>
+                    <a href="#home">Home</a>
                     <a href="#collection">Collection</a>
+                    <a href="#features">Features</a>
                     <a href="#how-it-works">How It Works</a>
                 </div>
 
-                <div className="landing-auth-buttons">
-                    <Link
-                        to="/login"
-                        className="landing-login-button"
-                    >
+                 <div className="landing-auth-buttons">
+                     <Link to="/login" className="landing-login-button">
                         Login
                     </Link>
 
-                    <Link
-                        to="/register"
-                        className="landing-register-button"
-                    >
-                        Register
-                    </Link>
-                </div>
+                 <Link to="/register" className="landing-register-button">
+                      Register
+                          </Link>
+                  </div>
             </nav>
 
-            <section className="landing-hero">
+            <section className="landing-hero" id="home">
                 <div className="landing-hero-content">
-                    <div className="hero-badge">
-                        ✦ A smarter way to explore books
-                    </div>
+                    <span className="page-eyebrow">
+                        YOUR DIGITAL LIBRARY
+                    </span>
 
                     <h1>
-                        Your library,
+                        Every Book.
                         <br />
-                        <span>beautifully organized.</span>
+                        Every Reader.
+                        <br />
+                        <span>One Place.</span>
                     </h1>
 
                     <p>
-                        Discover available books, borrow what you
-                        love, and track your reading journey.
-                        Library administrators get the tools they
-                        need to manage the collection.
+                        Discover books, explore knowledge, and manage your
+                        library with LibraSys — a simpler way to bring
+                        readers and books together.
                     </p>
 
-                    <div className="hero-buttons">
-                        <Link
-                            to="/register"
-                            className="hero-primary-button"
-                        >
-                            Create Account <span>→</span>
+                    <div className="landing-hero-actions">
+                        <Link to="/login" className="landing-login-button">
+                            Explore Library →
                         </Link>
 
-                        <Link
-                            to="/login"
-                            className="hero-secondary-button"
-                        >
-                            Sign In
-                        </Link>
+                        <a href="#features" className="landing-secondary-button">
+                            Discover Features
+                        </a>
                     </div>
 
-                    <div className="landing-trust-note">
-                        <span>✓</span>
-                        Separate experiences for readers and admins
+                    <div className="landing-hero-stats">
+                        <div>
+                            <strong>{books.length || "—"}</strong>
+                            <span>Library Books</span>
+                        </div>
+                        <div>
+                            <strong>24/7</strong>
+                            <span>Easy Access</span>
+                        </div>
+                        <div>
+                            <strong>100%</strong>
+                            <span>Organized</span>
+                        </div>
                     </div>
                 </div>
 
                 <div className="landing-hero-visual">
-                    <div className="hero-glow" />
-
-                    <div className="landing-book-stack">
-                        <div className="landing-book book-one">
-                            STORIES
-                        </div>
-                        <div className="landing-book book-two">
-                            KNOWLEDGE
-                        </div>
-                        <div className="landing-book book-three">
-                            DISCOVER
-                        </div>
-                        <div className="landing-book book-four">
-                            LEARN
-                        </div>
-                    </div>
-
-                    <div className="landing-floating-card floating-card-one">
-                        <span>📖</span>
-                        <div>
-                            <strong>Find your next read</strong>
-                            <small>Browse available books</small>
-                        </div>
-                    </div>
-
-                    <div className="landing-floating-card floating-card-two">
-                        <span>✓</span>
-                        <div>
-                            <strong>Easy borrowing</strong>
-                            <small>Keep track of due dates</small>
-                        </div>
+                    <div className="landing-hero-book-card">
+                        <div className="landing-hero-book-icon">📖</div>
+                        <span>READ · DISCOVER · GROW</span>
+                        <h2>A world of knowledge awaits.</h2>
+                        <p>Your next favourite book is waiting for you.</p>
                     </div>
                 </div>
             </section>
 
-            <section
-                className="landing-section"
-                id="features"
-            >
-                <div className="section-heading landing-section-heading">
-                    <span>LIBRASYS FEATURES</span>
-                    <h2>Everything you need in one library.</h2>
+            <section className="landing-collection" id="collection">
+                <div className="landing-section-heading">
+                    <div>
+                        <span className="page-eyebrow">BOOK COLLECTION</span>
+                        <h2>Explore the shelves</h2>
+                        <p>
+                            Discover books from your library collection.
+                        </p>
+                    </div>
+
+                    <div className="landing-carousel-controls">
+                        <button
+                            type="button"
+                            onClick={() => moveCarousel(-1)}
+                            aria-label="Scroll books left"
+                        >
+                            ←
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => moveCarousel(1)}
+                            aria-label="Scroll books right"
+                        >
+                            →
+                        </button>
+                    </div>
+                </div>
+
+                {loadingBooks && (
+                    <p className="landing-books-message">
+                        Loading books from your library…
+                    </p>
+                )}
+
+                {booksError && books.length === 0 && (
+                    <p className="landing-books-message">
+                        Showing featured books. Start the backend to load
+                        your library collection.
+                    </p>
+                )}
+
+                {!loadingBooks && books.length === 0 && !booksError && (
+                    <p className="landing-books-message">
+                        Showing featured books.
+                    </p>
+                )}
+
+                <div
+                    className="landing-book-carousel"
+                    ref={carouselRef}
+                    onMouseEnter={() => setCarouselPaused(true)}
+                    onMouseLeave={() => setCarouselPaused(false)}
+                    onFocus={() => setCarouselPaused(true)}
+                    onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) {
+                            setCarouselPaused(false);
+                        }
+                    }}
+                >
+                    {displayedBooks.map((book, index) => (
+                        <article
+                            className="landing-book-card"
+                            key={book.id || `${book.title}-${index}`}
+                        >
+                            <Link
+                                to="/login"
+                                className="landing-book-cover-link"
+                                aria-label={`Login to explore ${book.title}`}
+                            >
+                                <BookCover book={book} />
+                            </Link>
+
+                            <div className="landing-book-details">
+                                <span className="landing-book-category">
+                                    {book.category || "Library Collection"}
+                                </span>
+                                <h3>{book.title || "Untitled Book"}</h3>
+                                <p>{book.author || "Unknown Author"}</p>
+                                <Link to="/login" className="landing-book-link">
+                                    Explore book →
+                                </Link>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+
+                <div className="landing-collection-action">
+                    <Link to="/login" className="landing-login-button">
+                        Explore Full Collection →
+                    </Link>
+                </div>
+            </section>
+
+            <section className="landing-features" id="features">
+                <div className="landing-section-heading centered">
+                    <span className="page-eyebrow">WHY LIBRASYS</span>
+                    <h2>Library management made simpler</h2>
                     <p>
-                        Simple tools for readers and powerful
-                        management features for administrators.
+                        Everything you need to keep books and readers organized.
                     </p>
                 </div>
 
                 <div className="landing-feature-grid">
-                    {features.map((feature) => (
-                        <article
-                            className="landing-feature-card"
-                            key={feature.title}
-                        >
-                            <div className="landing-feature-icon">
-                                {feature.icon}
-                            </div>
+                    <article className="landing-feature-card">
+                        <div className="landing-feature-icon">📚</div>
+                        <h3>Book Management</h3>
+                        <p>
+                            Keep book details, categories, and availability
+                            organized in one place.
+                        </p>
+                    </article>
 
-                            <h3>{feature.title}</h3>
-                            <p>{feature.text}</p>
-                        </article>
-                    ))}
+                    <article className="landing-feature-card">
+                        <div className="landing-feature-icon">👥</div>
+                        <h3>Member Management</h3>
+                        <p>
+                            Maintain member records and make library
+                            administration easier.
+                        </p>
+                    </article>
+
+                    <article className="landing-feature-card">
+                        <div className="landing-feature-icon">🔄</div>
+                        <h3>Borrow and Return</h3>
+                        <p>
+                            Track borrowed books, due dates, and returned
+                            books efficiently.
+                        </p>
+                    </article>
+
+                    <article className="landing-feature-card">
+                        <div className="landing-feature-icon">📊</div>
+                        <h3>Useful Reports</h3>
+                        <p>
+                            View library activity and keep track of your
+                            collection.
+                        </p>
+                    </article>
                 </div>
             </section>
 
-            <section
-                className="landing-collection-section"
-                id="collection"
-            >
+            <section className="landing-how-it-works" id="how-it-works">
                 <div>
-                    <span className="landing-eyebrow">
-                        YOUR NEXT CHAPTER
-                    </span>
-
-                    <h2>
-                        Find a book.
-                        <br />
-                        Start something new.
-                    </h2>
-
+                    <span className="page-eyebrow">GET STARTED</span>
+                    <h2>Your library, one simple step away.</h2>
                     <p>
-                        Register to explore the available collection
-                        and manage your borrowing history in one place.
+                        Sign in to access your LibraSys library experience
+                        and explore the books available to you.
                     </p>
-
-                    <Link
-                        to="/register"
-                        className="hero-primary-button"
-                    >
-                        Explore the Library →
+                    <Link to="/login" className="landing-login-button">
+                        Get Started →
                     </Link>
                 </div>
-
-                <div className="landing-collection-illustration">
-                    <span>📚</span>
-                    <span>📖</span>
-                    <span>📘</span>
-                </div>
-            </section>
-
-            <section
-                className="landing-how-section"
-                id="how-it-works"
-            >
-                <div className="section-heading landing-section-heading">
-                    <span>GET STARTED</span>
-                    <h2>Three simple steps.</h2>
-                </div>
-
-                <div className="landing-steps">
-                    <article>
-                        <span>01</span>
-                        <h3>Create an account</h3>
-                        <p>Register as a library user.</p>
-                    </article>
-
-                    <article>
-                        <span>02</span>
-                        <h3>Explore the collection</h3>
-                        <p>See books and available copies.</p>
-                    </article>
-
-                    <article>
-                        <span>03</span>
-                        <h3>Borrow and track</h3>
-                        <p>Borrow books and check their due dates.</p>
-                    </article>
-                </div>
-            </section>
-
-            <section className="landing-final-cta">
-                <h2>Ready to explore your library?</h2>
-                <p>
-                    Create your account and discover the collection.
-                </p>
-
-                <Link
-                    to="/register"
-                    className="landing-register-button"
-                >
-                    Register Now →
-                </Link>
             </section>
 
             <footer className="landing-footer">
-                <div className="landing-logo">
+                <Link to="/" className="landing-logo">
                     <div className="landing-logo-icon">📚</div>
                     <div>
                         <strong>LibraSys</strong>
-                        <span>Library Management</span>
+                        <span>Library Management System</span>
                     </div>
-                </div>
+                </Link>
 
                 <p>
-                    A simple platform for books, readers and library
-                    management.
+                    Making library management simple, organized, and
+                    accessible.
                 </p>
 
-                <span>© 2026 LibraSys</span>
+                <span>
+                    © {new Date().getFullYear()} LibraSys. All rights reserved.
+                </span>
             </footer>
         </div>
     );

@@ -1,4 +1,6 @@
+ 
 import { useEffect, useState } from "react";
+import { useAlert } from "../components/Alert";
 
 const BOOKS_API = "http://localhost:5000/api/books";
 const LOANS_API = "http://localhost:5000/api/loans";
@@ -13,6 +15,8 @@ function getLocalDate(date = new Date()) {
 }
 
 function UserCatalog() {
+    const { toast, confirm } = useAlert();
+
     const [books, setBooks] = useState([]);
     const [search, setSearch] = useState("");
     const [category, setCategory] = useState("All");
@@ -23,9 +27,7 @@ function UserCatalog() {
     let user = {};
 
     try {
-        user = JSON.parse(
-            localStorage.getItem("user") || "{}"
-        );
+        user = JSON.parse(localStorage.getItem("user") || "{}");
     } catch {
         user = {};
     }
@@ -39,9 +41,7 @@ function UserCatalog() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.message || "Unable to load books"
-                );
+                throw new Error(data.message || "Unable to load books");
             }
 
             setBooks(Array.isArray(data) ? data : []);
@@ -63,14 +63,15 @@ function UserCatalog() {
         const memberId = Number(user.memberId);
 
         if (!memberId) {
-            alert(
-                "Your library member record was not found. Please contact the administrator."
+            toast(
+                "Your library member record was not found. Please contact the administrator.",
+                "error"
             );
             return;
         }
 
         if (Number(book.available_copies) < 1) {
-            alert("This book is currently unavailable.");
+            toast("This book is currently unavailable.", "error");
             return;
         }
 
@@ -81,24 +82,30 @@ function UserCatalog() {
 
         const dueDate = getLocalDate(due);
 
+        const approved = await confirm({
+            title: "Borrow this book?",
+            message: `Are you sure you want to borrow "${book.title}"? Please return it by ${dueDate}.`,
+            confirmText: "Yes, Borrow",
+            cancelText: "Cancel"
+        });
+
+        if (!approved) return;
+
         try {
             setBorrowingId(book.id);
 
-            const response = await fetch(
-                `${LOANS_API}/borrow`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        book_id: Number(book.id),
-                        member_id: memberId,
-                        borrow_date: borrowDate,
-                        due_date: dueDate
-                    })
-                }
-            );
+            const response = await fetch(`${LOANS_API}/borrow`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    book_id: Number(book.id),
+                    member_id: memberId,
+                    borrow_date: borrowDate,
+                    due_date: dueDate
+                })
+            });
 
             const data = await response.json();
 
@@ -108,14 +115,15 @@ function UserCatalog() {
                 );
             }
 
-            alert(
-                `Book borrowed successfully! Please return it by ${dueDate}.`
+            toast(
+                `Book borrowed successfully! Please return it by ${dueDate}.`,
+                "success"
             );
 
             await fetchBooks();
         } catch (error) {
             console.error("Borrow error:", error);
-            alert(error.message || "Unable to borrow book.");
+            toast(error.message || "Unable to borrow book.", "error");
         } finally {
             setBorrowingId(null);
         }
@@ -149,8 +157,7 @@ function UserCatalog() {
     ).length;
 
     const totalAvailableCopies = books.reduce(
-        (total, book) =>
-            total + Number(book.available_copies || 0),
+        (total, book) => total + Number(book.available_copies || 0),
         0
     );
 
@@ -220,16 +227,12 @@ function UserCatalog() {
                         type="search"
                         placeholder="Search by title, author or ISBN..."
                         value={search}
-                        onChange={(event) =>
-                            setSearch(event.target.value)
-                        }
+                        onChange={(event) => setSearch(event.target.value)}
                     />
 
                     <select
                         value={category}
-                        onChange={(event) =>
-                            setCategory(event.target.value)
-                        }
+                        onChange={(event) => setCategory(event.target.value)}
                     >
                         {categories.map((item) => (
                             <option key={item} value={item}>
@@ -248,7 +251,7 @@ function UserCatalog() {
                 {error && (
                     <div className="reader-error">
                         {error}
-                        <button onClick={fetchBooks}>
+                        <button type="button" onClick={fetchBooks}>
                             Try Again
                         </button>
                     </div>
@@ -327,20 +330,19 @@ function UserCatalog() {
                                         </div>
 
                                         <button
+                                            type="button"
                                             className="reader-borrow-button"
                                             disabled={
                                                 !available ||
                                                 borrowingId === book.id
                                             }
-                                            onClick={() =>
-                                                handleBorrow(book)
-                                            }
+                                            onClick={() => handleBorrow(book)}
                                         >
                                             {!available
                                                 ? "Currently Unavailable"
                                                 : borrowingId === book.id
-                                                    ? "Processing..."
-                                                    : "Borrow Book →"}
+                                                ? "Processing..."
+                                                : "Borrow Book →"}
                                         </button>
                                     </div>
                                 </article>

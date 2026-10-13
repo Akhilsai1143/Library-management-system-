@@ -1,4 +1,5 @@
- import {
+ 
+import {
     BrowserRouter,
     Routes,
     Route,
@@ -8,6 +9,7 @@
 import Navbar from "./components/Navbar";
 import UserNavbar from "./components/UserNavbar";
 import ProtectedRoute from "./components/protectedRoute";
+import { AlertProvider } from "./components/Alert";
 
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -22,7 +24,6 @@ import Reports from "./pages/Reports";
 import UserCatalog from "./pages/UserCatalog";
 import MyLoans from "./pages/MyLoans";
 
- 
 function AdminLayout() {
     return (
         <ProtectedRoute role="admin">
@@ -108,34 +109,36 @@ function UserLayout() {
 
 function App() {
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route
-                    path="/"
-                    element={<Landing />}
-                />
+        <AlertProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route
+                        path="/"
+                        element={<Landing />}
+                    />
 
-                <Route
-                    path="/login"
-                    element={<Login />}
-                />
+                    <Route
+                        path="/login"
+                        element={<Login />}
+                    />
 
-                <Route
-                    path="/register"
-                    element={<Register />}
-                />
+                    <Route
+                        path="/register"
+                        element={<Register />}
+                    />
 
-                <Route
-                    path="/user/*"
-                    element={<UserLayout />}
-                />
+                    <Route
+                        path="/user/*"
+                        element={<UserLayout />}
+                    />
 
-                <Route
-                    path="/*"
-                    element={<AdminLayout />}
-                />
-            </Routes>
-        </BrowserRouter>
+                    <Route
+                        path="/*"
+                        element={<AdminLayout />}
+                    />
+                </Routes>
+            </BrowserRouter>
+        </AlertProvider>
     );
 }
 
